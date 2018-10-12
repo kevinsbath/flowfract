@@ -4,61 +4,78 @@ var dashCanvas = document.getElementById("dashboard");
 
 var fractal = Fractal();
 
-var viewport = { w: 2, h: 2, centre: { x: -0.5, y:0.0 } };
-var zoomport = { centre: { x: 0.0, y: 0.0 }};
-fractal.draw(viewport);
+var viewportComplex = { w: 3, h: 3, centre: { Re: -0.5, Im:0.0 } };
+var zoomportComplex = viewportComplex;
+var clickCoords = {};
+var canvasImageCopy;
+fractal.draw(viewportComplex);
 
 
 
 function Fractal() {
 
-    var ctx = fractCanvas.getContext("2d");
+    var ctxFract = fractCanvas.getContext("2d");
     var ctxDash = dashCanvas.getContext("2d");
+
+    var canvasRect = fractCanvas.getBoundingClientRect();
 
     fractCanvas.addEventListener("mousedown", doMouseDown, false);
     fractCanvas.addEventListener("mouseup", doMouseUp, false);
     fractCanvas.addEventListener("mousemove", doMouseMove, false);
 
-    function draw(viewPort) {
-
-        var rect = fractCanvas.getBoundingClientRect();
+    function draw(viewportComplex) {
 
         // amount of canvas that is used
-        var viewWPix = rect.width - 2;
-        var viewHPix = rect.height - 2;
+        var viewWPix = canvasRect.width - 2;
+        var viewHPix = canvasRect.height - 2;
 
         // number of rendered 'pixels'
-        var numBlocks = { w: 500, h: 500};
+        var numBlocks = { w: 100, h: 100};
 
         // calc size of block
-        var sizeOfBlock = viewWPix / numBlocks.w;
-        var blockBorder = 0;
+        var sizeOfBlock = { w: viewWPix/numBlocks.w, h: viewHPix/numBlocks.h };
+        var blockBorder = 1;
 
+        console.log("f: draw");
         console.log('sizeOfBlock:' + sizeOfBlock);
-        ctx.fillStyle = 'green';
-        ctx.fillRect(0, 0, viewWPix, viewHPix);
+        console.log(viewportComplex);
+        ctxFract.fillStyle = 'green';
+        ctxFract.fillRect(0, 0, viewWPix, viewHPix);
 
-        ctx.fillStyle = 'red';
-        for (y = 0; y < numBlocks.h; y++) {
-            for (x = 0; x < numBlocks.w; x++) {
-                complexCoords = getComplexCoords(viewPort, x, y, numBlocks);
-                iterations = calcEscape(complexCoords.rVal, complexCoords.iVal);
+        for (row = 0; row < numBlocks.h; row++) {
+            for (col = 0; col < numBlocks.w; col++) {
+                complexCoords = getComplexCoords(viewportComplex, col * sizeOfBlock.w, row * sizeOfBlock.h);
+                iterations = calcEscape(complexCoords.Re, complexCoords.Im);
                 r = 255 - iterations;
                 g = 255 - iterations;
                 b = 255 - iterations;
-                ctx.fillStyle = 'rgb(' + r + ', ' + g + ', ' + b + ')';
-                ctx.fillRect( (x * sizeOfBlock) + blockBorder, (y * sizeOfBlock) + blockBorder, sizeOfBlock - blockBorder, sizeOfBlock - blockBorder );
+                ctxFract.fillStyle = 'rgb(' + r + ', ' + g + ', ' + b + ')';
+                ctxFract.fillRect(  
+                    (col * sizeOfBlock.w) + blockBorder, 
+                    (row * sizeOfBlock.h) + blockBorder, 
+                    sizeOfBlock.h - blockBorder, 
+                    sizeOfBlock.w - blockBorder 
+                );
             }
         }
 
     }
 
 
-    function getComplexCoords(viewPort, x, y, numBlocks) {
-        xval = (x/numBlocks.w * viewport.w) - viewport.w/2 + viewport.centre.x;
-        yval = viewport.h/2 - (y/numBlocks.h * viewport.h) - viewport.centre.y;
-        return {rVal: xval, iVal: yval};
+    function getComplexCoords(viewportComplex, canvasX, canvasY) {          
+        xval = (canvasX/canvasRect.width * viewportComplex.w) - viewportComplex.w/2 + viewportComplex.centre.Re;
+        yval = viewportComplex.h/2 - (canvasY/canvasRect.height * viewportComplex.h) - viewportComplex.centre.Im;
+        return {Re: xval, Im: yval};
     }
+
+    function getMouseCanvasPos(canvas, event) {
+        var rect = canvas.getBoundingClientRect();
+        x = event.clientX - rect.left - 2;
+        y = event.clientY - rect.top - 2;
+        return({ x: x, y: y });
+    }
+
+
 
 
     function calcEscape(Cx, Cyi) {
@@ -85,45 +102,64 @@ function Fractal() {
 
 
     function doMouseDown(event) {
+        canvasImageCopy = ctxFract.getImageData(0, 0, canvasRect.width, canvasRect.height); 
         clickPos = getMouseCanvasPos(fractCanvas, event);
-        console.log("down", clickPos.complexPos);
-        zoomport.centre = clickPos.complexPos;
+        clickCoords.x = clickPos.x;
+        clickCoords.y = clickPos.y;
+        console.log("down", clickCoords);
+        plotCoords(clickCoords.x, clickCoords.y, 100);
     }
 
 
     function doMouseUp(event) {
         clickPos = getMouseCanvasPos(fractCanvas, event);
-        console.log("up", clickPos.complexPos);
-        zoomport.w = clickPos.complexPos.x - zoomport.centre.x;
-        zoomport.h = clickPos.complexPos.y - zoomport.centre.y;
-        plotViewport(zoomport);
-        draw(zoomport);
+        console.log("up", clickPos);
+        // zoomport.w = clickPos.complexPos.x - zoomport.centre.x;
+        // zoomport.h = clickPos.complexPos.y - zoomport.centre.y;
+        // plotViewport(zoomport);
+        // draw(zoomport);
+        clickCoords = {};
+        ctxFract.putImageData(canvasImageCopy, 0, 0);
     }
 
 
     function doMouseMove(event) {
         mousePos = getMouseCanvasPos(fractCanvas, event);
+        // Q: we need to store the mousedown position - but in what context/scope? 
+        // It needs to be outside of the scope of this function - so how do we create that variable if not already initialised?
+        
         clear(dashCanvas);
-        plotCoords(mousePos.complexPos);
+        plotCoords(mousePos.x, mousePos.y, 0);
+        if (clickCoords.x) {    // we can assume mouse is down
+            ctxFract.putImageData(canvasImageCopy, 0, 0);
+
+            dx = Math.abs(mousePos.x - clickCoords.x);
+            dy = Math.abs(mousePos.y - clickCoords.y);
+
+            dn = Math.max(dx, dy);
+
+            ctxFract.fillStyle = 'rgba(255,0,0, 0.5)';
+            ctxFract.fillRect(  
+                clickCoords.x - dn, 
+                clickCoords.y - dn, 
+                dn * 2,
+                dn * 2,
+            );
+
+
+            plotCoords(clickCoords.x, clickCoords.y, 100);
+            plotCoords(mousePos.x - clickCoords.x, mousePos.y - clickCoords.y, 100, 150);
+
+        }
     }
 
 
-    function getMouseCanvasPos(canvas, event) {
-        var rect = canvas.getBoundingClientRect();
-        x = event.clientX - rect.left - 2;
-        y = event.clientY - rect.top - 2;
-        complexPos = {
-            x: (x/rect.width * viewport.w) - viewport.w/2 + viewport.centre.x,
-            y: ((y/rect.height * viewport.h) - viewport.h/2 + viewport.centre.y),
-        };
-        return({ x: x, y: y, complexPos });
-    }
 
-
-    function plotCoords(complexPos) {
+    
+    function plotCoords(x, y, yPos, xPos=0) {
         ctxDash.font = "12px Arial";
-        ctxDash.fillText("x: " + complexPos.x,10,20);
-        ctxDash.fillText("y: " + complexPos.y,10,40);
+        ctxDash.fillText("x: " + x, xPos + 10, yPos+20);
+        ctxDash.fillText("y: " + y, xPos + 10, yPos+40);
     }
 
     function plotViewport(viewport) {
