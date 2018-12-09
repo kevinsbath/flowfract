@@ -1,21 +1,45 @@
 
 var fractCanvas = document.getElementById("fract");
 var dashCanvas = document.getElementById("dashboard");
+var paletteCanvas = document.getElementById("palette");
 
 var fractal = Fractal();
+var palette = Palette();
+var fType = "Mandelbrot";
 
-var viewportComplex = { w: 3, h: 3, centre: { Re: -0.5, Im: 0.0 } };
+var viewportComplex = { w: 4, h: 4, centre: { Re: 0.0, Im: 0.0 } };
+var CRe = CIm = 0.0;
 var zoomportComplex = viewportComplex;
 var clickCoords = {};
 var canvasImageCopy;
 fractal.draw(viewportComplex);
 
+var imageLink = "https://lh3.googleusercontent.com/h8ZODB7tOmzILu8-jeaBjEvz92Z-izgBaPeE99oifh1EDdigS5NXGHYz3XE_zt_qoZDGPVv8zOjXRs9Vge_NMrG0HSQsGiw4nUP-3Hf2pYe4oAsSox0mNJCzwp-7CyY6BQpgNHMLZduKxy-2Bd0LbVT1JGsqy_3gcm2JKYoUmLPshBkIMHoftAOSBs0oLwujDFD5Uj33UnZWJKWwNllhKu6B2UYWIpA78YSk6Lsl6PIPYqNBjLNa4x9uqNqPBIBFW5x1GOPwQZH9QI1EG-Ha0QNUyxiPDMHJPLuWssE2muPFyiABxXAUSbhQsooy-XWrc8PfcBpvpILza7D59FlBHyYACfd8wHoFk_vMh--OFJ1noTRII8NUSb0TrSQYI8u3a4-Van-9EiaUF2ws1gGZYbzoLKyB8oyvPSh9ooGnHrl8N5vLooyArCY8Tr5oBW99oFjGD0Bss5PEBT4BoIMGyS4uJmVBFvTZ6TQrixnlULm1k73zOlu5SKpdHNOVKKRgAWZUkRd9ACgG6LndjMP3EqJ54b7yg9GPtRUuDoVI-Ks1Rbuuifj7MdLnLISjHKX51oCNpEfM-3g_Imm1U31LCqbXveZuyzR3NbQRTA7dY3z73V3L0LuX5uXqyhA237MG=w1198-h1596-no";
 
+palette.loadImage(imageLink);
+
+window.onkeyup = function(e) {
+    var key = e.keyCode ? e.keyCode : e.which;
+    console.log(key);
+    if (key=='74') {    // j
+        fType = "Julia";
+        juliaviewportComplex = { w: 4, h: 4, centre: { Re: 0.0, Im: 0.0 } };
+        fractal.draw(juliaviewportComplex);
+    }
+
+    if (key=="77") {    // m
+        fType = "Mandelbrot";
+        fractal.draw(viewportComplex);
+    }
+
+
+}
 
 function Fractal() {
 
     var ctxFract = fractCanvas.getContext("2d");
     var ctxDash = dashCanvas.getContext("2d");
+
 
     var canvasRect = fractCanvas.getBoundingClientRect();
 
@@ -23,40 +47,58 @@ function Fractal() {
     fractCanvas.addEventListener("mouseup", doMouseUp, false);
     fractCanvas.addEventListener("mousemove", doMouseMove, false);
 
+    // amount of canvas that is used
+    var viewWPix = canvasRect.width - 2;
+    var viewHPix = canvasRect.height - 2;
+
+    // number of rendered 'pixels'
+    var numBlocks = { w: 800, h: 800};
+    // calc size of block
+    var sizeOfBlock = { w: viewWPix/numBlocks.w, h: viewHPix/numBlocks.h };
+    var blockBorder = 0;
+
     function draw(viewportComplex) {
-
-        // amount of canvas that is used
-        var viewWPix = canvasRect.width - 2;
-        var viewHPix = canvasRect.height - 2;
-
-        // number of rendered 'pixels'
-        var numBlocks = { w: 800, h: 800};
-
-        // calc size of block
-        var sizeOfBlock = { w: viewWPix/numBlocks.w, h: viewHPix/numBlocks.h };
-        var blockBorder = 0;
-
         console.log("f: draw");
         console.log('sizeOfBlock:' + sizeOfBlock);
         console.log(viewportComplex);
         ctxFract.fillStyle = 'green';
         ctxFract.fillRect(0, 0, viewWPix, viewHPix);
 
-        for (row = 0; row < (numBlocks.h); row++) {
-            for (col = 0; col < numBlocks.w; col++) {
-                complexCoords = getComplexCoords(viewportComplex, col * sizeOfBlock.w, row * sizeOfBlock.h);
-                iterations = calcEscape(complexCoords.Re, complexCoords.Im).iterations;
-                r = 255 - iterations;
-                g = 255 - iterations;
-                b = 255 - iterations;
-                ctxFract.fillStyle = 'rgb(' + r + ', ' + g + ', ' + b + ')';
-                ctxFract.fillRect(  
-                    (col * sizeOfBlock.w) + blockBorder, 
-                    (row * sizeOfBlock.h) + blockBorder, 
-                    sizeOfBlock.h - blockBorder, 
-                    sizeOfBlock.w - blockBorder 
-                );
+        row = 0;
+
+        function nextRow() {
+            if (row < numBlocks.h) {
+                drawRow(viewportComplex, row);  
+                row++;
+            } else {
+                clearInterval(intvNextRow);
             }
+        }
+        var intvNextRow = setInterval(nextRow,1);
+    }
+
+    function drawRow(viewportComplex,row) {
+
+        for (col = 0; col < numBlocks.w; col++) {
+            complexCoords = getComplexCoords(viewportComplex, col * sizeOfBlock.w, row * sizeOfBlock.h);
+
+            if (fType == "Mandelbrot") {
+                iterations = calcEscape(complexCoords.Re, complexCoords.Im).iterations;
+            } else {
+                iterations = calcEscapeJulia(complexCoords.Re, complexCoords.Im, CRe, CIm).iterations;
+            }
+            
+            r = g = b = 255 - iterations;
+            // g = 255 - iterations;
+            // b = 255 - iterations;
+
+            ctxFract.fillStyle = 'rgb(' + r + ', ' + g + ', ' + b + ')';
+            ctxFract.fillRect(  
+                (col * sizeOfBlock.w) + blockBorder, 
+                (row * sizeOfBlock.h) + blockBorder, 
+                sizeOfBlock.h - blockBorder, 
+                sizeOfBlock.w - blockBorder 
+            );
         }
 
     }
@@ -102,6 +144,28 @@ function Fractal() {
         return { iterations: iteration, escapeValue: escapeValue };
     }
 
+    function calcEscapeJulia(Re, Im, CRe, CIm) {
+        // (Re + Im)(Re + Im) + CRe + CIm
+        // => Re2 + 2Re.Im - Im2 + CRe + CIm
+        // => Re = Re2 - Im2 + CRe
+        // => Im = 2Re.Im + CIm
+
+        var maxIterations = 512;
+        var escapeValue = 6;
+        var iteration = 0;
+
+        // var x = Cx;
+        // var yi = Cyi;
+
+        while (Re*Re+Im*Im <= escapeValue && iteration < maxIterations) {
+            new_Re = Re*Re - Im*Im + CRe;   // we set a new_Re so we can use the Re value in following calc with its original value
+            Im = 2*Re*Im + CIm;
+            Re = new_Re;
+            iteration++;
+        }
+        return { iterations: iteration, escapeValue: escapeValue };
+    }
+
 
     function doMouseDown(event) {
         canvasImageCopy = ctxFract.getImageData(0, 0, canvasRect.width, canvasRect.height); 
@@ -137,6 +201,8 @@ function Fractal() {
 
         mouseComplexPos = getComplexCoords(viewportComplex, mousePos.x,  mousePos.y);
         plotCoords(mouseComplexPos.Re, mouseComplexPos.Im, 0, 60);
+        CRe = mouseComplexPos.Re;
+        CIm = mouseComplexPos.Im;
 
         if (clickCoords.x) {    // we can assume mouse is down
             ctxFract.putImageData(canvasImageCopy, 0, 0);
@@ -180,9 +246,9 @@ function Fractal() {
 
 
     function plotViewport(viewport) {
-        ctxDash.font = "12px Arial";
-        ctxDash.fillText("viewport.w: " + viewport.w,10,80);
-        ctxDash.fillText("viewport.h: " + viewport.h,10,100);
+        // ctxDash.font = "12px Arial";
+        // ctxDash.fillText("viewport.w: " + viewport.w,10,80);
+        // ctxDash.fillText("viewport.h: " + viewport.h,10,100);
     }
 
 
@@ -195,6 +261,24 @@ function Fractal() {
     return {
         draw
     };
+
+}
+
+function Palette() {
+    var ctxPalette = paletteCanvas.getContext("2d");
+    function loadImage(imageLink) {
+        var img = new Image;
+        img.onload = function(){
+            ctxPalette.drawImage(img,0,0); // Or at whatever offset you like
+        };
+        img.src = imageLink;
+    }
+
+    return {
+        loadImage
+    }
+
+
 }
 
 
