@@ -234,6 +234,7 @@ function Fractal() {
         } else {
             calc = calcEscape(mouseComplexPos.Re, mouseComplexPos.Im);
             plotCoords(calc.iterations, calc.escapeValue, 180);
+
         }
     }
 
